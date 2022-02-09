@@ -1,0 +1,137 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kubernetes.io/change-cause: "Pruebas de aplicaciones v1"
+  name: simit-d
+  labels:
+    estado: "1"
+spec:
+  selector:
+    matchLabels:
+      app: simit
+  replicas: 1
+  strategy:
+     type: RollingUpdate
+     rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+  minReadySeconds: 10
+  template:
+    metadata:
+      labels:
+        app: simit
+    spec:
+      affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                  - key: gruposervers
+                    operator: In
+                    values:
+                    - microserver1
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                    - simit
+                topologyKey: "kubernetes.io/hostname"           
+      containers:
+      - name: simit
+        image: qxdockerregistry.quipux.com/test/panda-paginaweb:latest
+#        image: 366479207868.dkr.ecr.us-east-1.amazonaws.com/panda-centoshttp:simit6
+#        image: perxix/panda-centoshttp:simit6
+#        image: amazoncorretto:15-alpine-jdk
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            memory: 700Mi
+            cpu: 600m
+          requests:
+            memory: 500Mi
+            cpu: 3m
+        volumeMounts:
+          - mountPath: /var/log/httpd/
+#          - mountPath: /application
+#            name: nfs-vol
+            name: hostpath-vol            
+      dnsPolicy: "None"
+      dnsConfig:
+        nameservers:
+          - 192.168.2.2
+          - 8.8.8.8
+        searches:
+          - quipux.local
+          - default.svc.cluster.local
+          - svc.cluster.local
+          - cluster.local
+        options:
+          - name: ndots
+            value: "5"                  
+      imagePullSecrets:
+#        - name: myregdockerhub
+#        - name: 366479207868-aws-ecr-us-east-1
+#         - name: awssecret
+         - name: qxregistry
+      volumes:
+        - name: hostpath-vol
+          hostPath:
+            path: /opt/data/paginaweb/logs     
+#        - name: nfs-vol
+#          persistentVolumeClaim:
+#            claimName: nfs-pvc
+#      nodeSelector:
+#        hostname: qxk8snode15.quipux.local
+#  strategy:
+#    type: RollingUpdate
+#    rollingUpdate:
+#      maxUnavailable: 25%
+#      maxSurge: 25%
+#  revisionHistoryLimit: 10
+#  progressDeadlineSeconds: 600
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: simit
+  labels:
+    app: simit
+spec:
+  type: NodePort
+  selector:
+    app: simit
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      nodePort: 30185
+#---
+#apiVersion: autoscaling/v2beta2
+##apiVersion: autoscaling/v1
+#kind: HorizontalPodAutoscaler
+#metadata:
+#  name: simit-cpu-scale
+##  namespace: argocd
+#spec:
+#  scaleTargetRef:
+#    apiVersion: apps/v1
+#    kind: Deployment
+#    name: simit-d
+#  minReplicas: 3
+#  maxReplicas: 6
+##  targetCPUUtilizationPercentage: 10
+#  metrics:
+#  - type: Resource
+#    resource:
+#      name: cpu
+#      target:
+#        type: Utilization
+#        averageValue: 540m
